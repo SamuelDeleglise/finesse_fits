@@ -13,11 +13,13 @@ import numpy as np
 c = 3e8
 
 def full_analysis(curve_id):
-    curve = models.CurveDB.objects.get(id=curve_id)
-    fsr = FSRScan(curve)
+    fsr = FSRScan(curve_id)
     fsr.make_portions()
     fsr.fit_peaks()
-    fsr.get_length()
+    fsr.plot_fits()
+    fsr.fit_dfdt_of_t()
+    fsr.fit_length()
+    fsr.make_summary()
     return fsr
 
 def fit_rebonds_sb(curve, mod_freq_mhz=250):
@@ -224,12 +226,20 @@ class FSRScan(object):
         
         pylab.plot(x, self.linear_freq([self.L, self.offset], x))
     
-    def get_length(self):
-        pylab.subplot(413)
-        sp = splrep(self.x0,range(len(self.x0)))
+    def make_summary(self):
+        """
         
-        x = np.linspace(min(self.x0),max(self.x0))
-        pylab.plot(x,splev(x,sp))
-        pylab.subplot(412)
-        pylab.plot(x,3e8/300e-6*splev(x,sp,der=1))
+        """
         
+        self.mean_kappa = np.mean(self.kappa)
+        self.mean_finesse = np.pi*3e8/(self.L*self.mean_kappa*2*np.pi)
+        
+        print """=====================SUMMARY========================"""
+        print "Length: ", self.L
+        print "Kappa/2pi: ", np.mean(self.kappa)
+        print "Mean finesse: ", self.mean_finesse
+        self.curve.params["length"] = self.L
+        self.curve.params["kappa_over_2pi"] = np.mean(self.kappa)
+        self.curve.params["finesse"] = self.mean_finesse
+        self.curve.save()
+        print """====================================================="""
