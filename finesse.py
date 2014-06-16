@@ -12,8 +12,8 @@ import numpy as np
 
 c = 3e8
 
-def full_analysis(curve_id):
-    fsr = FSRScan(curve_id)
+def full_analysis(curve_id, ramp_id):
+    fsr = FSRScan(curve_id, ramp_id)
     fsr.make_portions()
     fsr.fit_peaks()
     fsr.plot_fits()
@@ -58,10 +58,10 @@ class FSRScan(object):
     """
     Extract the finesse, and length of a cavity from an FSR scan
     """
-    def __init__(self, curve_id=None, mod_freq=250e6):
-        if curve_id is not None:
-            curve = models.CurveDB.objects.get(id=curve_id)
-        self.curve = curve
+    def __init__(self, curve_id, curve_id_ramp, mod_freq=250e6):
+        self.curve = models.CurveDB.objects.get(id=curve_id)
+        self.ramp  = models.CurveDB.objects.get(id=curve_id_ramp)
+        curve = self.curve
         self.mod_freq = mod_freq
         if 'summary_json' in curve.params:
             dic = json.loads(curve.params["summary_json"])
@@ -144,7 +144,6 @@ class FSRScan(object):
         return np.sign(inter_diff(times))
 
     def dfdt_of_t(self, args, times):
-        self.ramp = models.CurveDB.objects.get(id=12427)
         from scipy import signal
         b, a = signal.butter(2, 0.005)
         [amplitude,] = args
