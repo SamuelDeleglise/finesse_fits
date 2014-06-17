@@ -237,6 +237,13 @@ class FSRScan(object):
         print "Length: ", self.L
         print "Kappa/2pi: ", np.mean(self.kappa)
         print "Mean finesse: ", self.mean_finesse
+
+        pylab.subplot(413)
+        pylab.title("length: " + str(self.L))
+        pylab.subplot(414)
+        pylab.title("finesse: " + str(self.mean_finesse))
+        pylab.ylabel('kappa_over_2pi')
+        
         self.curve.params["length"] = self.L
         self.curve.params["kappa_over_2pi"] = np.mean(self.kappa)
         self.curve.params["finesse"] = self.mean_finesse
