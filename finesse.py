@@ -1,8 +1,9 @@
-
+from pyinstruments.curvestore.curve_create_widget import CurveCreateWidget
 from pyinstruments.pyhardwaredb import instrument
 from pyinstruments.curvestore import models
 from curve.fitting import Fit
 
+from PyQt4 import QtCore, QtGui
 import pylab
 import json
 from scipy.optimize import leastsq
@@ -11,49 +12,49 @@ from scipy.interpolate import splrep, splev
 import numpy as np
 from pylab import subplot, plot
 
-c = 3e8
+c = 2.99e8
 
-def full_analysis(curve_id, ramp_id, freq_pzt=25, freq_mod=250e6):
-    fsr = FSRScan(curve_id, ramp_id, freq_pzt, freq_mod)
-    fsr.make_portions()
-    fsr.fit_peaks()
-    fsr.plot_fits()
-    fsr.fit_dfdt_of_t()
-    fsr.fit_length()
-    fsr.make_summary()
-    return fsr
+class FinesseMeasurementWidget(CurveCreateWidget):
+    def __init__(self, parent=None):
+        super(FinesseMeasurementWidget, self).__init__(**self._get_defaults())
+        self.save_button.setText('acquire')
+        self.save_button.clicked.connect(self.acquire)
+        self.curve_modified.connect(self._save_defaults)
+        self.show()
+    
+    
+    def _get_initial_defaults(self):
+        return {"default_name":'multi_FSR',
+                 "default_window":'default_win',
+                 "tags":[],
+                 "comment":""}
+        
+    def _get_defaults(self):
+        settings = QtCore.QSettings("pyinstruments", "pyinstruments")
+        kwds_str = str(settings.value("default_session").toString())
+        if kwds_str != "":
+            kwds = json.loads(kwds_str)
+        else:
+            kwds = self._get_initial_defaults()
+        return kwds
 
-def fit_rebonds_sb(curve, mod_freq_mhz=250):
-    """
-    From a curve containing 2 sidebands and a rebond,
-    guess the scan speed from the sidebands and fit tau
-    on the rebonds with fixed df_dt.
-    A child curve containing only the central rebonds is created
-    """
-    
-    fit = Fit(curve.data, 'lorentzSB')
-    guess = fit._guesslorentzSB()
-    
-    child = models.CurveDB.create(curve.data.index, fit.lorentzSB(**guess), name='guess_lorentz_sb')
-    curve.add_child(child)
-    
-    lower = guess['x0'] - guess['SBwidth']/2
-    upper = guess['x0'] + guess['SBwidth']/2
-    new_dat = curve.data[lower:upper]
-    child = models.CurveDB.create(new_dat, name='rebonds_only')
-    curve.add_child(child)
-    dfdt_mhz_per_us = mod_freq_mhz/(guess['SBwidth']*1e6)
-    
-    fitcurve = child.fit('rebonds_reflexion', 
-                         autosave=True,
-                         manualguess_params={'tcav_us':1./(2*np.pi*dfdt_mhz_per_us*2*guess['bandwidth']*1e6)},  fixed_params={'dfdt_mhz_per_us':dfdt_mhz_per_us}, graphicalfit=True)
-   
-    
-    print mod_freq_mhz/(guess['SBwidth']*1e6)
-    curve.params['dfdt_mhz_per_us'] = fitcurve.params['dfdt_mhz_per_us']
-    curve.params['tcav_us'] = fitcurve.params['tcav_us']
-    curve.params['x0'] = fitcurve.params['x0']
-    
+    def _save_defaults(self):
+        kwds = {"default_name":self.name,
+                 "default_window":self.window,
+                 "tags":self.tags,
+                 "comment":self.comment}
+        settings = QtCore.QSettings("pyinstruments", "pyinstruments")
+        settings.setValue("default_session", json.dumps(kwds))
+
+    def acquire(self):
+        scope = instrument('IfoScope')
+        curve = scope.get_curve()
+        curve = curve.clever_downsample()
+        AUTO_TAG_WIDGET.apply_values_to_curve(curve)
+        self.curve.save()
+        
+        
+FINESSE_WIDGET = FinesseMeasurementWidget()
 
 class DataPeaks(object):
     def __init__(self, parent):
@@ -353,9 +354,5 @@ class FSRScan(object):
     def mean_finesse(self):
         return np.mean(self.data_peaks.finesse)
     
-    def acquire(self):
-        scope = instrument('IfoScope')
-        curve = scope.get_curve()
-        self.curve = curve.clever_downsample()
-        self.curve.save()
+
         
