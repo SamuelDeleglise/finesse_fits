@@ -48,11 +48,22 @@ class FinesseMeasurementWidget(CurveCreateWidget):
 
     def acquire(self):
         scope = instrument('IfoScope')
+        print 'acquiring signal (channel 1)'
+        scope.channel_idx = 1
         curve = scope.get_curve()
-        curve = curve.clever_downsample()
-        AUTO_TAG_WIDGET.apply_values_to_curve(curve)
-        self.curve.save()
-        
+        curve.clever_downsample(100)
+        self.apply_values_to_curve(curve)
+        curve.params["name"] = curve.params["name"]
+        curve.save()
+
+        print 'acquiring ramp (channel 2)'
+        scope.channel_idx = 2
+        curve2 = scope.get_curve()
+        curve2.downsample()
+        self.apply_values_to_curve(curve2)
+        curve2.params["name"] = "ramp"
+        curve.add_child(curve2)
+        #curve2.save()
         
 FINESSE_WIDGET = FinesseMeasurementWidget()
 
@@ -73,10 +84,11 @@ class DataPeaks(object):
         All peaks that are stronger than threshold are saved in a separated child curve
         """
         
-        if self.curve.has_childs:
+        peaks = self.child_peaks
+        if peaks.count()!=0:
             yn = raw_input("delete childs ?")
             if yn=="y" or yn=="Y":
-                for child in self.curve.childs.all():
+                for child in peaks:
                     child.delete()
         portions = []
         data = self.curve.data
@@ -91,7 +103,11 @@ class DataPeaks(object):
                     next = x + time
                     child = models.CurveDB.create(portion.index, portion, name="peak@"+str(x*1e6)+"us")
                     self.curve.add_child(child)
-                    
+
+    @property
+    def child_peaks(self):
+        return self.curve.childs.filter(_name__contains='peak@')
+    
     def fit_peaks(self):
         peaks = self.curve.childs.filter(_name__contains='peak@')
         dfdt = []
@@ -257,9 +273,9 @@ class FSRScan(object):
     Extract the finesse, and length of a cavity from an FSR scan
     """
     
-    def __init__(self, curve_id, curve_id_ramp, pzt_freq=25, mod_freq=250e6):
+    def __init__(self, curve_id, pzt_freq=25, mod_freq=250e6):
         self.curve = models.CurveDB.objects.get(id=curve_id)
-        self.ramp  = models.CurveDB.objects.get(id=curve_id_ramp)
+        self.ramp  = self.curve.childs.get(_name='ramp')
         self.pzt_freq = pzt_freq
         self.mod_freq = mod_freq
         self._length = None
@@ -269,7 +285,7 @@ class FSRScan(object):
         self.model_peaks = ModelPeaks(self)
     
     def clear_all(self):
-        for child in self.curve.childs.all():
+        for child in self.data_peaks.child_peaks:
             child.delete()
             self.data_peaks = DataPeaks(self)
             self.model_peaks = ModelPeaks(self)
@@ -349,6 +365,7 @@ class FSRScan(object):
                    label="%.1f"%(mean_kappa*1e-6) + ' MHz -> F='+ \
                    "{0:.0f}".format(self.mean_finesse))
         pylab.legend(loc='best')
+        pylab.show()
         
     @property
     def mean_finesse(self):
