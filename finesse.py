@@ -3,6 +3,7 @@ from pyinstruments.pyhardwaredb import instrument
 from pyinstruments.curvestore import models
 from curve.fitting import Fit
 
+from django.core.exceptions import ObjectDoesNotExist
 from PyQt4 import QtCore, QtGui
 import pylab
 import json
@@ -20,9 +21,25 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         self.save_button.setText('acquire')
         self.save_button.clicked.connect(self.acquire)
         self.curve_modified.connect(self._save_defaults)
-        #self.clever_downsample_checkbox = QtGui.QCheckBox()
+        self.clever_downsample_checkbox = QtGui.QCheckBox('clever downsample ?')
+        self.lay1.insertWidget(self.lay1.count() - 1, self.clever_downsample_checkbox)
+        
+        self.lay4 = QtGui.QFormLayout()
+        self.parent_id_spinbox = QtGui.QSpinBox()
+        self.parent_id_spinbox.setMaximum(1000000000)
+        self.lay4.addRow('parent id (0 for root): ', self.parent_id_spinbox)
+        self.lay1.insertLayout(0, self.lay4)
+        self.parent_id_spinbox.valueChanged.connect(self.update_label)
         self.show()
     
+    def update_label(self):
+        try:
+            curve = self.parent_curve()
+        except ObjectDoesNotExist:
+            label = 'parent id: (not found)'
+        else:
+            label = 'parent id: (' + curve.name + ')'
+        self.lay4.labelForField(self.parent_id_spinbox).setText(label)
     
     def _get_initial_defaults(self):
         return {"default_name":'multi_FSR',
@@ -47,23 +64,42 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         settings = QtCore.QSettings("pyinstruments", "pyinstruments")
         settings.setValue("default_session", json.dumps(kwds))
 
+    def is_downsample(self):
+        return self.clever_downsample_checkbox.checkState()==2
+            
+    def parent_id(self):
+        return self.parent_id_spinbox.value()
+
+    def parent_curve(self):
+        if self.parent_id()==0:
+            return
+        return models.CurveDB.objects.get(id=self.parent_id())
+    
     def acquire(self):
         scope = instrument('RTO')
         print 'acquiring signal (channel 1)'
         scope.channel_idx = 1
         curve = scope.get_curve()
-        curve.clever_downsample(1000)
+        if self.is_downsample():
+            curve.clever_downsample(1000)
         self.apply_values_to_curve(curve)
         curve.params["name"] = curve.params["name"]
-        curve.save()
+        parent_curve = self.parent_curve()
+        if parent_curve is not None:
+            parent_curve.add_child(curve)
+        else:
+            curve.save()
 
         print 'acquiring ramp (channel 2)'
         scope.channel_idx = 2
         curve2 = scope.get_curve()
-        curve2.downsample()
+        if self.is_downsample():
+            curve2.downsample()
         self.apply_values_to_curve(curve2)
         curve2.params["name"] = "ramp"
         curve.add_child(curve2)
+        
+        
         #curve2.save()
         
 FINESSE_WIDGET = FinesseMeasurementWidget()
