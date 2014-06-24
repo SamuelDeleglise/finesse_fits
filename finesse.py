@@ -20,6 +20,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         self.save_button.setText('acquire')
         self.save_button.clicked.connect(self.acquire)
         self.curve_modified.connect(self._save_defaults)
+        #self.clever_downsample_checkbox = QtGui.QCheckBox()
         self.show()
     
     
@@ -47,11 +48,11 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         settings.setValue("default_session", json.dumps(kwds))
 
     def acquire(self):
-        scope = instrument('IfoScope')
+        scope = instrument('RTO')
         print 'acquiring signal (channel 1)'
         scope.channel_idx = 1
         curve = scope.get_curve()
-        curve.clever_downsample(100)
+        curve.clever_downsample(1000)
         self.apply_values_to_curve(curve)
         curve.params["name"] = curve.params["name"]
         curve.save()
@@ -79,7 +80,7 @@ class DataPeaks(object):
         self._slopes = None
         self._bandwidth = None
 
-    def make_portions(self, threshold=0.5, time=35e-6):
+    def make_portions(self, threshold=0.5, time=20e-6):
         """
         All peaks that are stronger than threshold are saved in a separated child curve
         """
@@ -116,8 +117,7 @@ class DataPeaks(object):
         times = []
         for child in peaks:
             child = child.fit("lorentzSB", autosave=True)
-
-
+        
     
     @property
     def peaks(self):
@@ -136,7 +136,7 @@ class DataPeaks(object):
             fits = []
             for curve in self.peaks:
                 if curve.childs.all().count()!=1:
-                    raise ValueError("Curve " + curve + " should have exactly 1 child!")
+                    raise ValueError("Curve " + curve.params["name"] + " should have exactly 1 child!")
                 else:
                     fits.append(curve.childs.all()[0])
             self._fits = fits
@@ -160,7 +160,7 @@ class DataPeaks(object):
         if self._bandwidth is None:
             self._bandwidth = np.array([np.abs(f.params['bandwidth']) for f in self.fit_curves])
         return self._bandwidth
-    
+        
     @property
     def kappa_over_2pi(self):
         return 2*self.bandwidth_in_s*self.dfdt_abs
@@ -297,13 +297,6 @@ class FSRScan(object):
 
         
     def fit_length(self):
-        """
-        def accumulated_freq(L):
-            #times = np.array(self.x0)
-            #return self.amplitude*np.cos(self.phi + 2*np.pi*self.pzt_freq*times) - self.amplitude*np.cos(self.phi + 2*np.pi*self.pzt_freq*times[0])
-            return self.res_freq_of_t()/1064e-9*np.pi/(2*L)
-        """
-                 
         def error_freq_of_t(args):
             return self.linear_freq(args, self.data_peaks.mode_number) \
                 - np.array(self.model_peaks.freq_of_t(self.data_peaks.times))
@@ -365,7 +358,14 @@ class FSRScan(object):
                    label="%.1f"%(mean_kappa*1e-6) + ' MHz -> F='+ \
                    "{0:.0f}".format(self.mean_finesse))
         pylab.legend(loc='best')
+
+        print "=========================="
+        print "F moyenne\tF min\tF max"
+        print self.data_peaks.finesse.mean(),'\t', self.data_peaks.finesse.min(),'\t', self.data_peaks.finesse.max()
+        print "=========================="
+
         pylab.show()
+        
         
     @property
     def mean_finesse(self):
