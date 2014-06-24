@@ -317,6 +317,7 @@ class FSRScan(object):
         return self._offset
     
     def plot_summary(self):
+        fig = pylab.figure('summary', figsize=(15,10))
         pylab.suptitle('Finesse/Length analysis of curve #' \
                     + str(self.curve.id) + ' with ramp #' + str(self.ramp.id))
         subplot(311)
@@ -356,7 +357,7 @@ class FSRScan(object):
         pylab.plot([min(self.data_peaks.times), max(self.data_peaks.times)],
                    [mean_kappa, mean_kappa],
                    label="%.1f"%(mean_kappa*1e-6) + ' MHz -> F='+ \
-                   "{0:.0f}".format(self.mean_finesse))
+                   "{0:.0f}".format(self.mean_finesse) + ' (%.0f ppm)'%(1e6*2*np.pi/(self.mean_finesse)))
         pylab.legend(loc='best')
 
         print "=========================="
@@ -365,6 +366,11 @@ class FSRScan(object):
         print "=========================="
 
         pylab.show()
+        return fig
+    
+    def save_summary(self):
+        fig = self.plot_summary()
+        fig.savefig(self.curve.get_or_create_dir() + '/display.png')
         
         
     @property
