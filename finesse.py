@@ -81,7 +81,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         scope.channel_idx = 1
         curve = scope.get_curve()
         if self.is_downsample():
-            curve.clever_downsample(1000)
+            curve.clever_downsample(2000)
         self.apply_values_to_curve(curve)
         curve.params["name"] = curve.params["name"]
         parent_curve = self.parent_curve()
@@ -93,12 +93,17 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         print 'acquiring ramp (channel 2)'
         scope.channel_idx = 2
         curve2 = scope.get_curve()
-        if self.is_downsample():
-            curve2.downsample()
+        curve2.downsample()
         self.apply_values_to_curve(curve2)
         curve2.params["name"] = "ramp"
         curve.add_child(curve2)
-        
+
+        scope.channel_idx = 4
+        curve3 = scope.get_curve()
+        curve3.downsample()
+        self.apply_values_to_curve(curve3)
+        curve3.params["name"] = "dc"
+        curve.add_child(curve3)
         
         #curve2.save()
         
@@ -116,7 +121,7 @@ class DataPeaks(object):
         self._slopes = None
         self._bandwidth = None
 
-    def make_portions(self, threshold=0.5, time=20e-6):
+    def make_portions(self, threshold=0.5, time=40e-6):
         """
         All peaks that are stronger than threshold are saved in a separated child curve
         """
@@ -352,7 +357,7 @@ class FSRScan(object):
             self.fit_length()
         return self._offset
     
-    def plot_summary(self):
+    def _plot_summary(self):
         fig = pylab.figure('summary', figsize=(15,10))
         pylab.suptitle('Finesse/Length analysis of curve #' \
                     + str(self.curve.id) + ' with ramp #' + str(self.ramp.id))
@@ -405,9 +410,11 @@ class FSRScan(object):
         return fig
     
     def save_summary(self):
-        fig = self.plot_summary()
+        fig = self._plot_summary()
         fig.savefig(self.curve.get_or_create_dir() + '/display.png')
-        
+        self.curve.params['finesse'] = self.mean_finesse
+        self.curve.params['length'] = self.length
+        self.curve.save()
         
     @property
     def mean_finesse(self):
