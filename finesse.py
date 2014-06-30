@@ -25,13 +25,14 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         self.lay1.insertWidget(self.lay1.count() - 1, self.clever_downsample_checkbox)
         
         self.lay4 = QtGui.QFormLayout()
-        self.parent_id_spinbox = QtGui.QSpinBox()
-        self.parent_id_spinbox.setMaximum(1000000000)
+        #self.parent_id_spinbox = QtGui.QSpinBox()
+        #self.parent_id_spinbox.setMaximum(1000000000)
         self.lay4.addRow('parent id (0 for root): ', self.parent_id_spinbox)
         self.lay1.insertLayout(0, self.lay4)
-        self.parent_id_spinbox.valueChanged.connect(self.update_label)
+        #self.parent_id_spinbox.valueChanged.connect(self.update_label)
         self.show()
     
+    """
     def update_label(self):
         try:
             curve = self.parent_curve()
@@ -40,7 +41,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         else:
             label = 'parent id: (' + curve.name + ')'
         self.lay4.labelForField(self.parent_id_spinbox).setText(label)
-    
+    """
     def _get_initial_defaults(self):
         return {"default_name":'multi_FSR',
                  "default_window":'default_win',
@@ -66,7 +67,8 @@ class FinesseMeasurementWidget(CurveCreateWidget):
 
     def is_downsample(self):
         return self.clever_downsample_checkbox.checkState()==2
-            
+    
+    """
     def parent_id(self):
         return self.parent_id_spinbox.value()
 
@@ -74,6 +76,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         if self.parent_id()==0:
             return
         return models.CurveDB.objects.get(id=self.parent_id())
+    """
     
     def acquire(self):
         scope = instrument('RTO')
@@ -84,11 +87,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
             curve.clever_downsample(2000, threshold=0.15)
         self.apply_values_to_curve(curve)
         curve.params["name"] = curve.params["name"]
-        parent_curve = self.parent_curve()
-        if parent_curve is not None:
-            parent_curve.add_child(curve)
-        else:
-            curve.save()
+        curve.save()
 
         print 'acquiring ramp (channel 2)'
         scope.channel_idx = 2
