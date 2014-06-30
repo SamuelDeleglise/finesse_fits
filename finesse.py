@@ -81,7 +81,7 @@ class FinesseMeasurementWidget(CurveCreateWidget):
         scope.channel_idx = 1
         curve = scope.get_curve()
         if self.is_downsample():
-            curve.clever_downsample(2000)
+            curve.clever_downsample(2000, threshold=0.15)
         self.apply_values_to_curve(curve)
         curve.params["name"] = curve.params["name"]
         parent_curve = self.parent_curve()
